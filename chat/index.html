@@ -1,0 +1,165 @@
+<html>
+<style type="text/css">
+@font-face {
+	font-family: terminal;
+	src : url("./../VT323-Regular.ttf");
+}
+#term,#typing,label button{
+	font-family: terminal;
+	font-size : 20px;
+	background:#000;
+	color : orange;
+}
+#term{
+	resize: none;
+}
+</style>
+<body>
+
+<table  border="1">
+	<tr>
+		<td>
+<input id="text_info" size="120" readonly="true">
+<textarea cols="128" rows="20" resizeable="false" readonly id="term"></textarea><br>
+<input size="120"  id="typing" type="search">
+<label for="typing">
+<button onclick="typing.search()"> Send </button>	
+</label>
+</td>
+</tr>
+<tr>
+<td>
+
+<h2> Host </h2>
+<form id="form_host" onsubmit="event.preventDefault(); host_room(); this.reset();
+this.style.display='none'; form_join.style.display='block';">
+<label> Username <input type="text" id="host_username" required="true"></label><br>
+<label> Password <input type="password" id="host_pass" required="true"></label><br>
+<button type="submit"> Send </button>
+</form>
+
+
+
+</td>
+</tr>
+<tr>
+<td>
+
+<h2> Join </h2>
+<form id="form_join" onsubmit="event.preventDefault(); join_room(); 
+this.style.display='none'; form_host.style.display='block'; ">
+<label> Username <input type="text" id="join_username" required="true"></label><br>
+<label> Room ID <input type="text" id="join_roomname" required="true"></label><br>
+
+<label> Password <input type="password" id="join_pass" required="true"></label>
+<button type="submit"> Send </button>
+</form>
+
+
+
+</td>
+</tr>
+</table>
+
+
+
+</body>
+<script type="text/javascript" src="./../interface.js"></script>
+<script type="text/javascript">
+const baseURL= "./../";
+const hostphpURL = "host.php";
+const updateURL = "update.php";
+const refreshURL = "refresh.php";
+
+let isHosted = false;
+let roomId;
+let roomPass;
+let roomUsername;
+let currTime=0;
+update();
+async function update(){
+	while(1){
+		if(isHosted){
+			await refresh_room();
+		}
+		await wait16();
+
+	}
+}
+
+
+async function host_room(){
+	let pass = host_pass.value;
+	let uname = host_username.value;
+	let room_name = await server_post(baseURL+hostphpURL,[{param:"pass",value:pass}]);
+	//console.log(room_name);
+	if(room_name){
+		roomId = room_name;
+		roomPass = pass;
+		roomUsername = uname;
+		await update_room(roomUsername+" is joined");
+		text_info.value = "Name : "+roomId+" , Pass : "+roomPass;
+		isHosted = true;
+	}
+}
+typing.onsearch = async function(){
+	if(await update_room(roomUsername+" : "+typing.value)){
+		typing.value = "";
+	}
+}
+async function update_room(data){
+	let datalist = await server_post(baseURL+updateURL,[
+			{param:"pass",value:roomPass},
+			{param:"room",value:roomId},
+			{param:"data",value:encodeURIComponent(data)}
+			]);
+	//if(datalist){
+	//	typing.value = "";
+	//}
+
+	return datalist;
+}
+async function refresh_room(){
+	let datalist = await server_post(baseURL+refreshURL,[
+		{param:"pass",value:roomPass},
+			{param:"room",value:roomId},
+			{param:"time",value:currTime}
+		]);
+	//console.log(datalist);
+	if(datalist){
+		datalist = JSON.parse(datalist);
+		currTime = Number(datalist[1][0]);
+		term.value += decodeURIComponent( datalist[2][0])+"\n";
+	}
+	
+	//isHosted =false;
+}
+async function join_room(){
+	roomPass = join_pass.value;
+	roomId = join_roomname.value;
+	roomUsername = join_username.value;
+	//let room_name = await server_post(baseURL+hostphpURL,[{param:"pass",value:pass}]);
+	let isSuccess = await update_room(roomUsername+" is joined");
+	console.log(isSuccess);
+	//console.log(room_name);
+	if(isSuccess){
+		isHosted = true;
+		text_info.value = "Name : "+roomId+" , Pass : "+roomPass;
+	}else{
+		roomPass = "";
+		roomId= "";
+		roomUsername="";
+		
+		form_join.style.display = "block";
+		isHosted = false;
+	}
+}
+function wait16(){
+	return new Promise(r=>{requestAnimationFrame(r);});
+}
+
+
+
+
+</script>
+</html>

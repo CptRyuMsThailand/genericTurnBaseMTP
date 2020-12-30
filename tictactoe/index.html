@@ -1,0 +1,217 @@
+<html>
+<body>
+<table>
+<tr>
+<td>
+<input id="text_info" size="120"><br>
+<canvas id="cv" width="320" height="320" onclick="cvclick(event);"></canvas>
+<br>
+<button id="dom_btn_1" disabled onclick="sideButtonClick(0);">
+	X
+</button>
+<button id="dom_btn_2" onclick="sideButtonClick(1);">
+	O
+</button>
+<button onclick="onBeforeReset();">
+	Reset 
+
+</button>
+</td>
+</tr>
+<tr>
+<td>
+<h2> Host A game </h2>
+<form id="form_host" onsubmit="event.preventDefault(); host_room(hostCallback); this.reset();
+this.style.display='none'; form_join.style.display='block';">
+<label> Username <input type="text" id="host_username" required="true"></label><br>
+<label> Password <input type="password" id="host_pass" required="true"></label><br>
+<button type="submit"> Send </button>
+</form>
+</td>
+</tr>
+<tr>
+<td>
+
+<h2> Join </h2>
+<form id="form_join" onsubmit="event.preventDefault(); join_room(joinCallback); 
+this.style.display='none'; form_host.style.display='block'; ">
+<label> Username <input type="text" id="join_username" required="true"></label><br>
+<label> Room ID <input type="text" id="join_roomname" required="true"></label><br>
+
+<label> Password <input type="password" id="join_pass" required="true"></label>
+<button type="submit"> Send </button>
+</form>
+
+
+
+</td>
+</tr>
+</table>
+</body>
+<script type="text/javascript" src="./../interface.js"></script>
+<script type="text/javascript" src="./communication.js"></script>
+<script type="text/javascript" src="./util.js"></script>
+<script type="text/javascript">
+function hostCallback(){
+	update_room(
+			JSON.stringify(
+					{
+						turn : 0,
+						table : tttArray
+					}
+				)
+			);
+}
+function joinCallback(){
+
+}
+function sideButtonClick(side){
+	tttThisPlayer = side;
+	dom_btn_1.disabled = (side == 0);
+	dom_btn_2.disabled = (side == 1);
+	
+}
+function cvclick(ev){
+	let bound = cv.getBoundingClientRect();
+	let x = ev.pageX - Math.round(bound.left) - Math.round(window.pageXOffset);
+	let y = ev.pageY - Math.round(bound.top) - Math.round(window.pageYOffset);
+	transaction(x,y);
+}
+function onBeforeReset(){
+	if(!isHosted)return;
+	if(confirm("Are you want to reset")){
+		init();
+		update_room(
+			JSON.stringify(
+					{
+						turn : 0,
+						table : tttArray
+					}
+				)
+			);
+	}
+}
+let ctx = cv.getContext("2d");
+let W = cv.width;
+let H = cv.height;
+
+let tttPlayer = 0;
+let tttThisPlayer = 0;
+let tttArray = [0,0,0,0,0,0,0,0,0];
+const tttSign = [" ","X","O"];
+let tttGameOver = false;
+init();
+render();
+gameLoop();
+function init(){
+	tttPlayer = 0;
+	tttArray = [0,0,0,0,0,0,0,0,0];
+	
+	tttGameOver = false;
+
+}
+
+
+
+async function transaction(x,y){
+	if(tttGameOver || tttPlayer != tttThisPlayer )return;
+	
+	let px = clamp(Math.floor(map(x,0,W,0,3)),0,2);
+	let py = clamp(Math.floor(map(y,0,H,0,3)),0,2);
+
+	if(validPlace(px,py)){
+		tttArray[px+py*3] = tttThisPlayer+1;
+		tttPlayer = tttThisPlayer^1; //Blocking Operation
+
+		let t = await update_room(
+			JSON.stringify(
+					{
+						turn : (tttThisPlayer^1),
+						table : tttArray
+					}
+				)
+			);
+		if(t){
+
+		}else{
+			tttPlayer = tttThisPlayer;
+			tttArray[gridHash(px,py)] = 0;//revert changes
+		}
+	}
+	//render();
+	
+}
+function validPlace(px,py){
+	let pos = (px+py*3);
+	return tttArray[pos] == 0;
+}
+
+/*function gameCheck(){
+	for(let i=0;i<3;i++){
+		if()
+	}
+}*/
+function gridHash(x,y){
+	return x+y*3;
+}
+
+async function gameLoop(){
+	while(1){
+		if(isHosted){
+			let data = await refresh_room();
+			if(data){
+				let parse = JSON.parse(data);
+				console.log(parse);
+				tttArray = parse.table;
+				tttPlayer = parse.turn;
+				render();
+			}
+		}
+		await wait16();
+	}
+	
+}
+
+function wait16(){
+	return new Promise(
+		(r) =>{requestAnimationFrame(r);}
+		);
+}
+
+
+function render(){
+	ctx.clearRect(0,0,W,H);
+	renderGrid();
+	renderPiece();
+}
+function renderGrid(){
+	ctx.strokeStyle = "#000";
+	for(let i=0;i<2;i++){
+		ctx.beginPath();
+
+		ctx.moveTo(map(i,-1,2,0,W),0);
+		ctx.lineTo(map(i,-1,2,0,W),H);
+		ctx.stroke();
+		ctx.beginPath();
+
+		ctx.moveTo(0,map(i,-1,2,0,H));
+		ctx.lineTo(W,map(i,-1,2,0,H));
+		ctx.stroke();
+		
+	}
+}
+function renderPiece(){
+	ctx.fillStyle = "#000";
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
+	ctx.font = map(1,0,3,0,W)*0.5+"px arial";
+	for(let x=0;x<3;x++)
+	for(let y=0;y<3;y++){
+		ctx.fillText(tttSign[tttArray[gridHash(x,y)]],
+			map(x+0.5,0,3,0,W),
+			map(y+0.5,0,3,0,H),
+			);
+	}
+}
+</script>
+</html>
